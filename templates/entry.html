@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% block title %}New Refund Entry{% endblock %}
+{% block breadcrumb %}New Refund Entry{% endblock %}
+
+{% block extra_head %}
+<script>
+function calcNet() {
+  const inv = parseFloat(document.getElementById('invoice').value) || 0;
+  const rec = parseFloat(document.getElementById('received').value) || 0;
+  const net = Math.max(0, rec - inv);
+  const el = document.getElementById('net_display');
+  if (net > 0) {
+    el.value = '₹' + net.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    el.style.color = 'var(--green)';
+  } else {
+    el.value = '';
+    el.style.color = '';
+  }
+}
+</script>
+{% endblock %}
+
+{% block content %}
+<div class="page">
+  <div class="page-header">
+    <div style="display:flex;align-items:center;gap:14px">
+      <a href="{{ url_for('tracker') }}" class="btn btn-outline btn-sm">← Back</a>
+      <div>
+        <div class="page-title">New Refund Entry</div>
+        <div class="page-sub">Log a new customer refund obligation</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="form-wrap">
+    <form method="POST" action="{{ url_for('entry') }}">
+
+      <div class="form-section-label">Customer Details</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">Customer Name *</label>
+          <input class="form-input" type="text" name="name" placeholder="Full name" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Store Location *</label>
+          <input class="form-input" type="text" name="store" placeholder="e.g. Jayanagar" required list="stores">
+          <datalist id="stores">
+            <option value="Jayanagar">
+            <option value="Cross Cut">
+            <option value="RS Puram">
+          </datalist>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <input class="form-input" type="email" name="email" placeholder="customer@email.com">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Phone</label>
+          <input class="form-input" type="text" name="phone" placeholder="10-digit number">
+        </div>
+      </div>
+
+      <div class="form-section-label">Bank Details</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">Account Number</label>
+          <input class="form-input" type="text" name="acc" placeholder="Account number">
+        </div>
+        <div class="form-group">
+          <label class="form-label">IFSC Code</label>
+          <input class="form-input" type="text" name="ifsc" placeholder="e.g. SBIN0014512" style="text-transform:uppercase">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Bank</label>
+          <input class="form-input" type="text" name="bank" placeholder="e.g. SBI, HDFC Bank">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Account Holder Name</label>
+          <input class="form-input" type="text" name="bankname" placeholder="Name on bank account">
+        </div>
+      </div>
+
+      <div class="form-section-label">Refund Details</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">Reason for Refund *</label>
+          <select class="form-input" name="reason" required>
+            <option value="">Select reason…</option>
+            <option>Excess payment made</option>
+            <option>Excess amount paid in Old gold</option>
+            <option>Duplicate Payment</option>
+            <option>Billing Error</option>
+            <option>Product Return</option>
+            <option>Service Cancellation</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Refund Identified Date *</label>
+          <input class="form-input" type="date" name="date" value="{{ today }}" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Total Invoice Amount (₹) *</label>
+          <input class="form-input" type="number" id="invoice" name="invoice" placeholder="0.00" step="0.01" min="0" oninput="calcNet()" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Total Amount Received (₹) *</label>
+          <input class="form-input" type="number" id="received" name="received" placeholder="0.00" step="0.01" min="0" oninput="calcNet()" required>
+        </div>
+      </div>
+
+      <div style="margin-top:16px;margin-bottom:4px">
+        <div class="form-group">
+          <label class="form-label">Net Refund Amount (₹) — Auto-calculated</label>
+          <input class="form-input calc" type="text" id="net_display" placeholder="Fill in amounts above" readonly>
+          <div class="form-hint">Calculated as: Amount Received − Invoice Amount</div>
+        </div>
+      </div>
+
+      <div style="margin-top:16px">
+        <div class="form-group">
+          <label class="form-label">Approved By</label>
+          <input class="form-input" type="text" name="approved_by" placeholder="Manager name" style="max-width:420px">
+        </div>
+      </div>
+
+      <div style="margin-top:16px">
+        <div class="form-group">
+          <label class="form-label">Description / Notes</label>
+          <textarea class="form-input" name="notes" rows="3" placeholder="Additional context about this refund…"></textarea>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:12px;margin-top:28px;padding-top:20px;border-top:1px solid var(--border-light)">
+        <button type="submit" class="btn btn-primary">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v14a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          Save Refund Entry
+        </button>
+        <a href="{{ url_for('tracker') }}" class="btn btn-outline">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

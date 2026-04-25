@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}Summary & Reports{% endblock %}
+{% block breadcrumb %}Summary & Reports{% endblock %}
+
+{% block content %}
+<div class="page">
+  <div class="page-header">
+    <div class="page-title">Summary & Reports</div>
+    <div class="page-sub">Overview of all refund obligations across stores</div>
+  </div>
+
+  <div class="summary-grid">
+    <div class="kpi-card">
+      <div class="kpi-label">Total Outstanding (₹)</div>
+      <div class="kpi-val amber">₹{{ "{:,.2f}".format(total_outstanding) }}</div>
+      <div class="kpi-sub">Pending + In Progress</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Total Refunded (₹)</div>
+      <div class="kpi-val green">₹{{ "{:,.2f}".format(total_refunded) }}</div>
+      <div class="kpi-sub">Completed refunds</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Completion Rate</div>
+      <div class="kpi-val {{ 'green' if rate >= 50 else 'red' }}">{{ rate }}%</div>
+      <div class="kpi-sub">% entries completed</div>
+    </div>
+  </div>
+
+  <!-- By Store -->
+  <div class="card" style="margin-bottom:20px">
+    <div class="card-header">
+      <span class="card-title">By Store Location</span>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Store</th>
+            <th>Entries</th>
+            <th>Total Invoice (₹)</th>
+            <th>Net Refund (₹)</th>
+            <th>Pending</th>
+            <th>Completed</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for store, v in stores.items() %}
+          <tr>
+            <td style="font-weight:600;color:var(--text)">{{ store }}</td>
+            <td style="text-align:center;color:var(--text-sec)">{{ v.count }}</td>
+            <td class="amt">₹{{ "{:,.2f}".format(v.invoice) }}</td>
+            <td class="amt net">₹{{ "{:,.2f}".format(v.net) }}</td>
+            <td style="text-align:center;color:{{ 'var(--red)' if v.pending > 0 else 'var(--hint)' }};font-weight:600">{{ v.pending }}</td>
+            <td style="text-align:center;color:{{ 'var(--green)' if v.completed > 0 else 'var(--hint)' }};font-weight:600">{{ v.completed }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- By Reason -->
+  <div class="card" style="margin-bottom:20px">
+    <div class="card-header">
+      <span class="card-title">By Refund Reason</span>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>Reason</th><th>Net Refund Amount (₹)</th></tr>
+        </thead>
+        <tbody>
+          {% for reason, amt in reasons.items() %}
+          <tr>
+            <td style="color:var(--text-sec)">{{ reason }}</td>
+            <td class="amt net">₹{{ "{:,.2f}".format(amt) }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Export -->
+  <div class="card" style="padding:24px">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px">
+      <div>
+        <div style="font-family:'Cormorant Garamond',serif;font-size:16px;font-weight:500;color:var(--brand);margin-bottom:5px">Export to Google Sheets</div>
+        <div style="font-size:12px;color:var(--muted);letter-spacing:0.02em">Sync all records to your RÉIA Google Sheet. Requires credentials.json and SPREADSHEET_ID in .env</div>
+      </div>
+      <form method="POST" action="{{ url_for('export_google_sheets') }}">
+        <button type="submit" class="btn btn-green">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Sync to Google Sheets
+        </button>
+      </form>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

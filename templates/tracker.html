@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block title %}Refund Register{% endblock %}
+{% block breadcrumb %}Customer Refund Register{% endblock %}
+
+{% block content %}
+<div class="page">
+  <div class="page-header">
+    <div class="page-title">Customer Refund Register</div>
+    <div class="page-sub">All refund obligations — select a row to view full details</div>
+  </div>
+
+  <div class="kpi-grid">
+    <div class="kpi-card">
+      <div class="kpi-label">Total Entries</div>
+      <div class="kpi-val brand">{{ total }}</div>
+      <div class="kpi-sub">All recorded refunds</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Outstanding (₹)</div>
+      <div class="kpi-val amber">₹{{ "{:,.2f}".format(outstanding) }}</div>
+      <div class="kpi-sub">Pending + In Progress</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Pending</div>
+      <div class="kpi-val red">{{ pending }}</div>
+      <div class="kpi-sub">Not yet actioned</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Completed</div>
+      <div class="kpi-val green">{{ completed }}</div>
+      <div class="kpi-sub">Refunds disbursed</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">All Entries &nbsp;<span style="font-family:'DM Sans';font-size:12px;color:var(--muted);font-weight:400">({{ records|length }})</span></span>
+      <div class="toolbar">
+        <form method="GET" style="display:flex;gap:8px;align-items:center">
+          <input class="search" type="text" name="search" placeholder="Search customer…" value="{{ search }}">
+          <select class="fsel" name="status" onchange="this.form.submit()">
+            <option value="">All Status</option>
+            {% for s in ["Pending","In Progress","Completed","Overdue","On Hold"] %}
+              <option {{ 'selected' if status_filter == s }}>{{ s }}</option>
+            {% endfor %}
+          </select>
+          <button type="submit" class="btn btn-outline btn-sm">Filter</button>
+          {% if search or status_filter %}
+            <a href="{{ url_for('tracker') }}" class="btn btn-outline btn-sm">Clear</a>
+          {% endif %}
+        </form>
+        <a href="{{ url_for('entry') }}" class="btn btn-primary btn-sm">+ New Entry</a>
+      </div>
+    </div>
+
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Customer</th>
+            <th>Store</th>
+            <th>Bank</th>
+            <th>Invoice (₹)</th>
+            <th>Received (₹)</th>
+            <th>Net Refund (₹)</th>
+            <th>Identified Date</th>
+            <th>Days Out</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% if records %}
+            {% for r in records %}
+            <tr class="clickable" onclick="window.location='/detail/{{ r.no }}'">
+              <td style="color:var(--hint);font-family:var(--mono);font-size:11px">{{ r.no }}</td>
+              <td style="font-weight:500;color:var(--text)">{{ r.name }}</td>
+              <td style="color:var(--text-sec)">{{ r.store }}</td>
+              <td style="color:var(--muted)">{{ r.bank or '—' }}</td>
+              <td class="amt">{{ "₹{:,.2f}".format(r.invoice) }}</td>
+              <td class="amt">{{ "₹{:,.2f}".format(r.received) }}</td>
+              <td class="amt net">{{ "₹{:,.2f}".format(r.net) }}</td>
+              <td style="font-size:12px;color:var(--muted)">{{ r.date }}</td>
+              <td style="font-family:var(--mono);font-size:12px;color:{{ '#C0392B' if r.days_out > 7 else 'var(--text-sec)' }};font-weight:{% if r.days_out > 7 %}600{% else %}400{% endif %}">
+                {{ r.days_out }}d
+              </td>
+              <td>
+                {% set s = r.status %}
+                {% if s == 'Pending' %}<span class="badge badge-pending">Pending</span>
+                {% elif s == 'Completed' %}<span class="badge badge-completed">Completed</span>
+                {% elif s == 'Overdue' %}<span class="badge badge-overdue">Overdue</span>
+                {% elif s == 'In Progress' %}<span class="badge badge-progress">In Progress</span>
+                {% else %}<span class="badge badge-hold">{{ s }}</span>
+                {% endif %}
+              </td>
+              <td onclick="event.stopPropagation()">
+                <form method="POST" action="/delete/{{ r.no }}"
+                      onsubmit="return confirm('Delete entry #{{ r.no }} for {{ r.name }}?\nThis cannot be undone.')">
+                  <button type="submit" class="btn-delete" title="Delete entry">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
+                    </svg>
+                  </button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          {% else %}
+            <tr><td colspan="11" class="no-data">No records found. &nbsp;<a href="{{ url_for('entry') }}">Add the first entry?</a></td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<style>
+.btn-delete {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  cursor: pointer;
+  padding: 5px 7px;
+  color: var(--hint);
+  display: flex;
+  align-items: center;
+  transition: all 0.15s ease;
+}
+.btn-delete:hover {
+  background: var(--red-bg);
+  border-color: var(--red-border);
+  color: var(--red);
+}
+</style>
+{% endblock %}

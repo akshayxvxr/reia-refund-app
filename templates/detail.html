@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% block title %}{{ r.name }} — Detail{% endblock %}
+{% block breadcrumb %}Refund Detail{% endblock %}
+
+{% block content %}
+<div class="page">
+  <div class="page-header">
+    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+      <a href="{{ url_for('tracker') }}" class="btn btn-outline btn-sm">← Back</a>
+      <div>
+        <div class="page-title">{{ r.name }}</div>
+        <div class="page-sub">{{ r.store }} &nbsp;·&nbsp; Identified {{ r.date }}</div>
+      </div>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
+        {% set s = r.status %}
+        {% if s == 'Pending' %}<span class="badge badge-pending" style="font-size:11px;padding:5px 14px">Pending</span>
+        {% elif s == 'Completed' %}<span class="badge badge-completed" style="font-size:11px;padding:5px 14px">Completed</span>
+        {% elif s == 'Overdue' %}<span class="badge badge-overdue" style="font-size:11px;padding:5px 14px">Overdue</span>
+        {% elif s == 'In Progress' %}<span class="badge badge-progress" style="font-size:11px;padding:5px 14px">In Progress</span>
+        {% else %}<span class="badge badge-hold" style="font-size:11px;padding:5px 14px">{{ s }}</span>
+        {% endif %}
+
+        <form method="POST" action="/delete/{{ r.no }}"
+              onsubmit="return confirm('Permanently delete entry for {{ r.name }}? This cannot be undone.')">
+          <button type="submit" class="btn-delete-detail">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
+              <path d="M10 11v6M14 11v6"/>
+            </svg>
+            Delete Entry
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Amount row -->
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:20px">
+    <div class="kpi-card">
+      <div class="kpi-label">Invoice Amount</div>
+      <div class="kpi-val" style="font-size:24px">₹{{ "{:,.2f}".format(r.invoice) }}</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Amount Received</div>
+      <div class="kpi-val" style="font-size:24px">₹{{ "{:,.2f}".format(r.received) }}</div>
+    </div>
+    <div class="kpi-card" style="border-top-color:var(--green)">
+      <div class="kpi-label">Net Refund Due</div>
+      <div class="kpi-val green" style="font-size:24px">₹{{ "{:,.2f}".format(r.net) }}</div>
+      <div class="kpi-sub">{{ r.days_out }} days outstanding</div>
+    </div>
+  </div>
+
+  <div class="detail-grid">
+    <!-- Customer details -->
+    <div class="detail-section">
+      <div class="detail-section-title">Customer Details</div>
+      <div class="detail-row"><span class="detail-label">Name</span><span class="detail-val" style="font-weight:500">{{ r.name }}</span></div>
+      <div class="detail-row"><span class="detail-label">Store</span><span class="detail-val">{{ r.store }}</span></div>
+      <div class="detail-row"><span class="detail-label">Email</span><span class="detail-val" style="font-size:12px">{{ r.email or '—' }}</span></div>
+      <div class="detail-row"><span class="detail-label">Phone</span><span class="detail-val">{{ r.phone or '—' }}</span></div>
+    </div>
+
+    <!-- Bank details -->
+    <div class="detail-section">
+      <div class="detail-section-title">Bank Details</div>
+      <div class="detail-row"><span class="detail-label">Bank</span><span class="detail-val">{{ r.bank or '—' }}</span></div>
+      <div class="detail-row"><span class="detail-label">Account No.</span><span class="detail-val" style="font-family:var(--mono);font-size:12px;letter-spacing:0.06em">{{ r.acc or '—' }}</span></div>
+      <div class="detail-row"><span class="detail-label">IFSC</span><span class="detail-val" style="font-family:var(--mono);font-size:12px;letter-spacing:0.06em">{{ r.ifsc or '—' }}</span></div>
+      <div class="detail-row"><span class="detail-label">Account Holder</span><span class="detail-val">{{ r.bankname or '—' }}</span></div>
+    </div>
+
+    <!-- Refund info -->
+    <div class="detail-section">
+      <div class="detail-section-title">Refund Information</div>
+      <div class="detail-row"><span class="detail-label">Reason</span><span class="detail-val">{{ r.reason }}</span></div>
+      <div class="detail-row"><span class="detail-label">Identified Date</span><span class="detail-val">{{ r.date }}</span></div>
+      <div class="detail-row"><span class="detail-label">Approved By</span><span class="detail-val">{{ r.approved_by or '—' }}</span></div>
+      <div class="detail-row"><span class="detail-label">Actual Payment Date</span><span class="detail-val">{{ r.actual_date or '—' }}</span></div>
+      {% if r.notes %}
+      <div style="margin-top:14px;padding:12px 14px;background:var(--cream);border-radius:6px;font-size:12px;color:var(--text-sec);border:1px solid var(--border-light);line-height:1.6;font-style:italic">
+        "{{ r.notes }}"
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Update status -->
+    <div class="detail-section">
+      <div class="detail-section-title">Update Status</div>
+      <form method="POST" action="{{ url_for('update_status', no=r.no) }}">
+        <div class="form-group" style="margin-bottom:14px">
+          <label class="form-label">Status</label>
+          <select class="form-input" name="status">
+            {% for s in ["Pending", "In Progress", "Completed", "Overdue", "On Hold", "Cancelled"] %}
+              <option {{ 'selected' if r.status == s }}>{{ s }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group" style="margin-bottom:20px">
+          <label class="form-label">Approved By</label>
+          <input class="form-input" type="text" name="approved_by" value="{{ r.approved_by }}" placeholder="Manager name">
+        </div>
+        <button type="submit" class="btn btn-primary">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="20 6 9 17 4 12"/></svg>
+          Update
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<style>
+.btn-delete-detail {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: 1px solid var(--red-border);
+  border-radius: 6px;
+  color: var(--red);
+  cursor: pointer;
+  font-family: 'Jost', sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 6px 14px;
+  transition: all 0.15s ease;
+}
+.btn-delete-detail:hover {
+  background: var(--red-bg);
+  border-color: var(--red);
+}
+</style>
+{% endblock %}
