@@ -1,7 +1,8 @@
 from dotenv import load_dotenv
 load_dotenv()
 
-from flask import Flask, render_template, request, jsonify, redirect, url_for, flash
+from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session
+from functools import wraps
 import json
 import os
 from datetime import date, datetime
@@ -9,6 +10,18 @@ from google_sheets import GoogleSheetsSync
 
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "reia-refund-secret-2024")
+
+# ── Auth credentials (set these in Render environment variables) ──────────────
+APP_USERNAME = os.getenv("APP_USERNAME", "reia")
+APP_PASSWORD = os.getenv("APP_PASSWORD", "reia2024")
+
+def login_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get("logged_in"):
+            return redirect(url_for("login"))
+        return f(*args, **kwargs)
+    return decorated
 
 DATA_FILE = "data/refunds.json"
 
@@ -90,6 +103,28 @@ def next_record_no(records):
         return 1
     return max(r.get("no", 0) for r in records) + 1
 
+# ── Auth routes ───────────────────────────────────────────────────────────────
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if session.get("logged_in"):
+        return redirect(url_for("tracker"))
+    error = None
+    if request.method == "POST":
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "").strip()
+        if username == APP_USERNAME and password == APP_PASSWORD:
+            session["logged_in"] = True
+            return redirect(url_for("tracker"))
+        else:
+            error = "Invalid username or password. Please try again."
+    return render_template("login.html", error=error)
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
+
 # ── routes ────────────────────────────────────────────────────────────────────
 
 @app.route("/")
@@ -97,6 +132,7 @@ def index():
     return redirect(url_for("tracker"))
 
 @app.route("/tracker")
+@login_required
 def tracker():
     records = load_records()
     for r in records:
@@ -125,6 +161,7 @@ def tracker():
                            search=search)
 
 @app.route("/entry", methods=["GET", "POST"])
+@login_required
 def entry():
     if request.method == "POST":
         records  = load_records()
@@ -173,6 +210,7 @@ def entry():
     return render_template("entry.html", today=str(date.today()))
 
 @app.route("/detail/<int:no>")
+@login_required
 def detail(no):
     records = load_records()
     record  = next((r for r in records if r["no"] == no), None)
@@ -183,6 +221,7 @@ def detail(no):
     return render_template("detail.html", r=record)
 
 @app.route("/update_status/<int:no>", methods=["POST"])
+@login_required
 def update_status(no):
     records = load_records()
     for r in records:
@@ -210,6 +249,7 @@ def update_status(no):
     return redirect(url_for("detail", no=no))
 
 @app.route("/delete/<int:no>", methods=["POST"])
+@login_required
 def delete_record(no):
     records          = load_records()
     record_to_delete = next((r for r in records if r["no"] == no), None)
@@ -233,6 +273,7 @@ def delete_record(no):
     return redirect(url_for("tracker"))
 
 @app.route("/summary")
+@login_required
 def summary():
     records = load_records()
     stores  = {}
@@ -261,6 +302,7 @@ def summary():
                            rate=rate, reasons=reasons)
 
 @app.route("/export/google-sheets", methods=["POST"])
+@login_required
 def export_google_sheets():
     if not gs.is_configured():
         flash("Google Sheets not configured.", "error")
@@ -312,3 +354,4 @@ def api_delete(no):
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
+    

@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RÉIA — Accounts Portal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=DM+Serif+Display&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: #1A1A18;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .login-wrap {
+      width: 100%;
+      max-width: 400px;
+      padding: 24px;
+    }
+
+    .login-card {
+      background: #FDFAF6;
+      border-radius: 12px;
+      padding: 48px 40px;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.4);
+    }
+
+    .login-logo {
+      text-align: center;
+      margin-bottom: 32px;
+      padding-bottom: 28px;
+      border-bottom: 1px solid #EDE8DF;
+    }
+
+    .login-logo img {
+      width: 120px;
+      height: auto;
+    }
+
+    .login-title {
+      font-family: 'DM Serif Display', serif;
+      font-size: 22px;
+      color: #1A1A18;
+      text-align: center;
+      margin-bottom: 6px;
+    }
+
+    .login-sub {
+      font-size: 12px;
+      color: #8A8A80;
+      text-align: center;
+      letter-spacing: 0.06em;
+      margin-bottom: 32px;
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: #8A8A80;
+      margin-bottom: 6px;
+    }
+
+    .form-input {
+      width: 100%;
+      height: 42px;
+      padding: 0 14px;
+      border: 1px solid #DDD8CE;
+      border-radius: 7px;
+      background: #F8F4EE;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px;
+      color: #1A1A18;
+      outline: none;
+      transition: border 0.15s, box-shadow 0.15s;
+    }
+
+    .form-input:focus {
+      border-color: #BFA27A;
+      box-shadow: 0 0 0 3px rgba(191,162,122,0.15);
+    }
+
+    .btn-login {
+      width: 100%;
+      height: 44px;
+      background: #1A1A18;
+      color: #D4BA94;
+      border: none;
+      border-radius: 7px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      cursor: pointer;
+      margin-top: 24px;
+      transition: background 0.15s;
+    }
+
+    .btn-login:hover { background: #2A2A26; }
+
+    .error-msg {
+      background: #FDF0EE;
+      border: 1px solid #E8C4BF;
+      border-radius: 7px;
+      color: #C0392B;
+      font-size: 12px;
+      padding: 10px 14px;
+      margin-bottom: 16px;
+      text-align: center;
+    }
+
+    .login-footer {
+      text-align: center;
+      margin-top: 28px;
+      font-size: 11px;
+      color: #555550;
+      letter-spacing: 0.04em;
+    }
+  </style>
+</head>
+<body>
+  <div class="login-wrap">
+    <div class="login-card">
+      <div class="login-logo">
+        <img src="/static/reia_logo.png" alt="RÉIA">
+      </div>
+
+      <div class="login-title">Accounts Portal</div>
+      <div class="login-sub">Internal access only — authorised personnel</div>
+
+      {% if error %}
+      <div class="error-msg">{{ error }}</div>
+      {% endif %}
+
+      <form method="POST" action="/login">
+        <div class="form-group">
+          <label class="form-label">Username</label>
+          <input class="form-input" type="text" name="username" placeholder="Enter username" required autofocus>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Password</label>
+          <input class="form-input" type="password" name="password" placeholder="Enter password" required>
+        </div>
+        <button type="submit" class="btn-login">Sign In →</button>
+      </form>
+
+      <div class="login-footer">RÉIA &nbsp;·&nbsp; Accounts Portal</div>
+    </div>
+  </div>
+</body>
+</html>
