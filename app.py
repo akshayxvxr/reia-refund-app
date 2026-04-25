@@ -8,19 +8,32 @@ from datetime import date, datetime
 from google_sheets import GoogleSheetsSync
 
 app = Flask(__name__)
-app.secret_key = "reia-refund-secret-2024"
+app.secret_key = os.getenv("SECRET_KEY", "reia-refund-secret-2024")
 
 DATA_FILE = "data/refunds.json"
 
-# ── helpers ──────────────────────────────────────────────────────────────────
+# ── Google Sheets instance ────────────────────────────────────────────────────
+gs = GoogleSheetsSync()
+
+# ── helpers ───────────────────────────────────────────────────────────────────
 
 def load_records():
+    """Load from Google Sheets if configured, else fall back to local JSON."""
+    if gs.is_configured():
+        try:
+            return gs.load_all_records()
+        except Exception as e:
+            print(f"Google Sheets load error: {e} — falling back to local JSON")
+    return load_local()
+
+def load_local():
     if not os.path.exists(DATA_FILE):
         return seed_data()
     with open(DATA_FILE) as f:
         return json.load(f)
 
 def save_records(records):
+    """Save to local JSON as backup cache."""
     os.makedirs("data", exist_ok=True)
     with open(DATA_FILE, "w") as f:
         json.dump(records, f, indent=2, default=str)
@@ -62,11 +75,20 @@ def compute_days(record):
         return 0
     if record.get("date"):
         try:
-            d = datetime.strptime(record["date"], "%Y-%m-%d").date()
+            d = datetime.strptime(str(record["date"]), "%Y-%m-%d").date()
             return (date.today() - d).days
-        except Exception:
-            pass
+        except:
+            try:
+                d = datetime.strptime(str(record["date"]), "%m/%d/%Y").date()
+                return (date.today() - d).days
+            except:
+                pass
     return record.get("days_out", 0)
+
+def next_record_no(records):
+    if not records:
+        return 1
+    return max(r.get("no", 0) for r in records) + 1
 
 # ── routes ────────────────────────────────────────────────────────────────────
 
@@ -79,9 +101,11 @@ def tracker():
     records = load_records()
     for r in records:
         r["days_out"] = compute_days(r)
+
     status_filter = request.args.get("status", "")
-    search = request.args.get("search", "").lower()
-    filtered = records
+    search        = request.args.get("search", "").lower()
+    filtered      = records
+
     if status_filter:
         filtered = [r for r in filtered if r["status"] == status_filter]
     if search:
@@ -89,10 +113,12 @@ def tracker():
                     search in r["name"].lower() or
                     search in r["store"].lower() or
                     search in (r.get("bank") or "").lower()]
-    total = len(records)
-    pending = sum(1 for r in records if r["status"] == "Pending")
-    completed = sum(1 for r in records if r["status"] == "Completed")
+
+    total       = len(records)
+    pending     = sum(1 for r in records if r["status"] == "Pending")
+    completed   = sum(1 for r in records if r["status"] == "Completed")
     outstanding = sum(r["net"] for r in records if r["status"] != "Completed")
+
     return render_template("tracker.html", records=filtered, total=total,
                            pending=pending, completed=completed,
                            outstanding=outstanding, status_filter=status_filter,
@@ -101,52 +127,55 @@ def tracker():
 @app.route("/entry", methods=["GET", "POST"])
 def entry():
     if request.method == "POST":
-        records = load_records()
-        next_no = max((r["no"] for r in records), default=0) + 1
-        invoice = float(request.form.get("invoice", 0) or 0)
+        records  = load_records()
+        next_no  = next_record_no(records)
+        invoice  = float(request.form.get("invoice", 0) or 0)
         received = float(request.form.get("received", 0) or 0)
-        net = max(0, received - invoice)
+        net      = max(0, received - invoice)
+
         record = {
-            "no": next_no,
-            "name": request.form.get("name", "").strip(),
-            "store": request.form.get("store", "").strip(),
-            "email": request.form.get("email", "").strip(),
-            "phone": request.form.get("phone", "").strip(),
-            "acc": request.form.get("acc", "").strip(),
-            "ifsc": request.form.get("ifsc", "").strip(),
-            "bank": request.form.get("bank", "").strip(),
-            "bankname": request.form.get("bankname", "").strip(),
-            "date": request.form.get("date", str(date.today())),
-            "reason": request.form.get("reason", ""),
-            "notes": request.form.get("notes", "").strip(),
-            "invoice": invoice,
-            "received": received,
-            "net": net,
-            "approved_by": request.form.get("approved_by", "").strip(),
+            "no":               next_no,
+            "name":             request.form.get("name", "").strip(),
+            "store":            request.form.get("store", "").strip(),
+            "email":            request.form.get("email", "").strip(),
+            "phone":            request.form.get("phone", "").strip(),
+            "acc":              request.form.get("acc", "").strip(),
+            "ifsc":             request.form.get("ifsc", "").strip(),
+            "bank":             request.form.get("bank", "").strip(),
+            "bankname":         request.form.get("bankname", "").strip(),
+            "date":             request.form.get("date", str(date.today())),
+            "reason":           request.form.get("reason", ""),
+            "notes":            request.form.get("notes", "").strip(),
+            "invoice":          invoice,
+            "received":         received,
+            "net":              net,
+            "approved_by":      request.form.get("approved_by", "").strip(),
             "refund_initiated": "",
-            "days_out": 0,
-            "actual_date": "",
-            "status": "Pending",
+            "days_out":         0,
+            "actual_date":      "",
+            "status":           "Pending",
         }
+
+        # Save to Google Sheets (primary)
+        if gs.is_configured():
+            try:
+                gs.append_row(record)
+            except Exception as e:
+                print(f"Google Sheets append error: {e}")
+
+        # Also save locally as backup
         records.append(record)
         save_records(records)
 
-        # Sync to Google Sheets if configured
-        try:
-            gs = GoogleSheetsSync()
-            if gs.is_configured():
-                gs.append_row(record)
-        except Exception as e:
-            print(f"Google Sheets sync warning: {e}")
-
         flash("Refund entry saved successfully!", "success")
         return redirect(url_for("tracker"))
+
     return render_template("entry.html", today=str(date.today()))
 
 @app.route("/detail/<int:no>")
 def detail(no):
     records = load_records()
-    record = next((r for r in records if r["no"] == no), None)
+    record  = next((r for r in records if r["no"] == no), None)
     if not record:
         flash("Record not found.", "error")
         return redirect(url_for("tracker"))
@@ -164,67 +193,63 @@ def update_status(no):
             approved_by = request.form.get("approved_by", "").strip()
             if approved_by:
                 r["approved_by"] = approved_by
-            break
-    save_records(records)
+            r["days_out"] = compute_days(r)
 
-    # Sync full sheet to Google Sheets
-    try:
-        gs = GoogleSheetsSync()
-        if gs.is_configured():
-            gs.full_sync(records)
-    except Exception as e:
-        print(f"Google Sheets sync warning: {e}")
+            # Update in Google Sheets
+            if gs.is_configured():
+                try:
+                    gs.update_record(r)
+                except Exception as e:
+                    print(f"Google Sheets update error: {e}")
+
+            # Update local backup
+            save_records(records)
+            break
 
     flash("Status updated successfully.", "success")
     return redirect(url_for("detail", no=no))
 
-# ── DELETE route ──────────────────────────────────────────────────────────────
-
 @app.route("/delete/<int:no>", methods=["POST"])
 def delete_record(no):
-    records = load_records()
+    records          = load_records()
     record_to_delete = next((r for r in records if r["no"] == no), None)
 
     if not record_to_delete:
         flash("Record not found.", "error")
         return redirect(url_for("tracker"))
 
-    # Remove from local data
+    # Delete from Google Sheets
+    if gs.is_configured():
+        try:
+            gs.delete_row(no)
+        except Exception as e:
+            print(f"Google Sheets delete error: {e}")
+
+    # Delete from local backup
     records = [r for r in records if r["no"] != no]
     save_records(records)
-
-    # Sync deletion to Google Sheets (full re-sync after removal)
-    try:
-        gs = GoogleSheetsSync()
-        if gs.is_configured():
-            gs.delete_row(no)          # deletes the specific row by matching "no"
-            gs.full_sync(records)      # re-syncs the entire sheet to reflect deletion
-    except Exception as e:
-        print(f"Google Sheets sync warning: {e}")
 
     flash(f"Entry #{no} ({record_to_delete['name']}) deleted successfully.", "success")
     return redirect(url_for("tracker"))
 
-# ── summary ───────────────────────────────────────────────────────────────────
-
 @app.route("/summary")
 def summary():
     records = load_records()
-    stores = {}
+    stores  = {}
     for r in records:
         s = r["store"]
         if s not in stores:
             stores[s] = {"count": 0, "invoice": 0, "net": 0, "pending": 0, "completed": 0}
-        stores[s]["count"] += 1
+        stores[s]["count"]   += 1
         stores[s]["invoice"] += r["invoice"]
-        stores[s]["net"] += r["net"]
+        stores[s]["net"]     += r["net"]
         if r["status"] in ("Pending", "In Progress"):
             stores[s]["pending"] += 1
         if r["status"] == "Completed":
             stores[s]["completed"] += 1
 
     total_outstanding = sum(r["net"] for r in records if r["status"] != "Completed")
-    total_refunded = sum(r["net"] for r in records if r["status"] == "Completed")
+    total_refunded    = sum(r["net"] for r in records if r["status"] == "Completed")
     rate = round(len([r for r in records if r["status"] == "Completed"]) / len(records) * 100) if records else 0
     reasons = {}
     for r in records:
@@ -237,59 +262,53 @@ def summary():
 
 @app.route("/export/google-sheets", methods=["POST"])
 def export_google_sheets():
+    if not gs.is_configured():
+        flash("Google Sheets not configured.", "error")
+        return redirect(url_for("summary"))
     try:
-        gs = GoogleSheetsSync()
-        if not gs.is_configured():
-            flash("Google Sheets not configured. Add your credentials to .env file.", "error")
-            return redirect(url_for("summary"))
         records = load_records()
-        url = gs.full_sync(records)
-        flash(f"Exported to Google Sheets successfully! Sheet URL: {url}", "success")
+        url     = gs.full_sync(records)
+        flash(f"Synced to Google Sheets! {url}", "success")
     except Exception as e:
         flash(f"Export failed: {str(e)}", "error")
     return redirect(url_for("summary"))
 
-# ── API endpoints (JSON) ──────────────────────────────────────────────────────
+# ── API ───────────────────────────────────────────────────────────────────────
 
 @app.route("/api/records")
 def api_records():
-    records = load_records()
-    return jsonify(records)
+    return jsonify(load_records())
 
 @app.route("/api/records/<int:no>", methods=["PATCH"])
 def api_update(no):
     records = load_records()
-    data = request.get_json()
+    data    = request.get_json()
     for r in records:
         if r["no"] == no:
             r.update(data)
+            if gs.is_configured():
+                try:
+                    gs.update_record(r)
+                except Exception as e:
+                    print(f"Google Sheets update error: {e}")
             save_records(records)
             return jsonify({"ok": True, "record": r})
     return jsonify({"ok": False, "error": "Not found"}), 404
 
 @app.route("/api/records/<int:no>", methods=["DELETE"])
 def api_delete(no):
-    """REST API endpoint to delete a record by number."""
-    records = load_records()
+    records          = load_records()
     record_to_delete = next((r for r in records if r["no"] == no), None)
-
     if not record_to_delete:
         return jsonify({"ok": False, "error": "Not found"}), 404
-
+    if gs.is_configured():
+        try:
+            gs.delete_row(no)
+        except Exception as e:
+            print(f"Google Sheets delete error: {e}")
     records = [r for r in records if r["no"] != no]
     save_records(records)
-
-    # Sync to Google Sheets
-    try:
-        gs = GoogleSheetsSync()
-        if gs.is_configured():
-            gs.delete_row(no)
-            gs.full_sync(records)
-    except Exception as e:
-        print(f"Google Sheets sync warning: {e}")
-
     return jsonify({"ok": True, "deleted": no})
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
-    
