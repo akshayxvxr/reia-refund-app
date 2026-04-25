@@ -29,7 +29,7 @@ SCOPES = [
     "https://www.googleapis.com/auth/drive",
 ]
 
-DATA_ROW_START = 9  # First row with actual data (headers span rows 6-8)
+DATA_ROW_START = 7  # First row with actual data (headers on row 6)
 
 def _clean_amount(val):
     """Convert '₹32,859.00' or '32859' to float."""
