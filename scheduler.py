@@ -1,9 +1,10 @@
 """
 scheduler.py — Background email reminder scheduler.
 
-Reads reminder_interval_minutes from settings.json at runtime,
-so any change made in the Settings UI takes effect on the *next* tick
-without restarting the server.
+Fixes:
+  - No circular import from app.py
+  - Reads interval dynamically every tick
+  - Sleeps in short chunks so interval changes take effect quickly
 """
 
 import threading
@@ -16,12 +17,46 @@ import sendgrid
 from sendgrid.helpers.mail import Mail
 
 from settings import load_settings
+from google_sheets import GoogleSheetsSync
+
+DATA_FILE = "data/refunds.json"
 
 
-# ── email helper ──────────────────────────────────────────────────────────────
+# ── Standalone record helpers (NO import from app.py) ────────────────────────
 
-def send_reminder_email(pending_records: list, recipient: str):
-    """Send a summary email of all pending refunds."""
+def _load_local():
+    if not os.path.exists(DATA_FILE):
+        return []
+    try:
+        with open(DATA_FILE) as f:
+            return json.load(f)
+    except Exception:
+        return []
+
+
+def _load_records():
+    gs = GoogleSheetsSync()
+    if gs.is_configured():
+        try:
+            return gs.load_all_records()
+        except Exception as e:
+            print(f"[Scheduler] Sheets load error: {e} — using local")
+    return _load_local()
+
+
+def _compute_days(record) -> int:
+    if str(record.get("status", "")).strip().lower() == "completed":
+        return 0
+    try:
+        d = datetime.strptime(str(record.get("date", "")), "%Y-%m-%d").date()
+        return (date.today() - d).days
+    except Exception:
+        return record.get("days_out", 0)
+
+
+# ── Email ─────────────────────────────────────────────────────────────────────
+
+def send_reminder_email(pending_records: list, recipient: str, interval: int):
     sg_key = os.getenv("SENDGRID_API_KEY")
     if not sg_key:
         print("[Scheduler] SENDGRID_API_KEY not set — skipping email.")
@@ -31,7 +66,7 @@ def send_reminder_email(pending_records: list, recipient: str):
 
     rows_html = ""
     for r in pending_records:
-        days = r.get("days_out", 0)
+        days      = r.get("days_out", 0)
         highlight = ' style="color:#dc2626;font-weight:bold;"' if days >= 7 else ""
         rows_html += f"""
         <tr>
@@ -42,9 +77,7 @@ def send_reminder_email(pending_records: list, recipient: str):
           <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;"{highlight}>{days} days</td>
         </tr>"""
 
-    total_outstanding = sum(r.get("net", 0) for r in pending_records)
-    settings = load_settings()
-    interval = settings.get("reminder_interval_minutes", 240)
+    total = sum(r.get("net", 0) for r in pending_records)
 
     html_content = f"""
     <div style="font-family:Arial,sans-serif;max-width:640px;margin:auto;">
@@ -53,12 +86,11 @@ def send_reminder_email(pending_records: list, recipient: str):
       </h2>
       <div style="background:#fffbeb;padding:16px 20px;border:1px solid #e5e7eb;border-top:none;">
         <p style="margin:0 0 8px;">
-          <strong>{len(pending_records)}</strong> refund(s) are still pending.
-          Total outstanding: <strong>₹{total_outstanding:,.0f}</strong>
+          <strong>{len(pending_records)}</strong> refund(s) pending.
+          Total outstanding: <strong>₹{total:,.0f}</strong>
         </p>
         <p style="margin:0;font-size:12px;color:#6b7280;">
-          Reminders are sent every <strong>{interval} minute(s)</strong>.
-          Change this in <em>Settings → Reminder Interval</em>.
+          Reminders sent every <strong>{interval} minute(s)</strong>.
         </p>
       </div>
       <table style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;border-top:none;">
@@ -74,63 +106,77 @@ def send_reminder_email(pending_records: list, recipient: str):
         <tbody>{rows_html}</tbody>
       </table>
       <p style="font-size:11px;color:#9ca3af;padding:12px 20px;border:1px solid #e5e7eb;border-top:none;margin:0;">
-        Sent on {datetime.now().strftime('%d %b %Y, %I:%M %p')} by REIA Refund Tracker
+        Sent on {datetime.now().strftime('%d %b %Y, %I:%M %p')} · REIA Refund Tracker
       </p>
     </div>
     """
 
-    message = Mail(
-        from_email=from_email,
-        to_emails=recipient,
-        subject=f"[REIA] {len(pending_records)} Pending Refund(s) — ₹{total_outstanding:,.0f} Outstanding",
-        html_content=html_content,
-    )
-
     try:
-        sg = sendgrid.SendGridAPIClient(api_key=sg_key)
-        response = sg.send(message)
-        print(f"[Scheduler] Reminder sent to {recipient} — status {response.status_code}")
+        sg       = sendgrid.SendGridAPIClient(api_key=sg_key)
+        response = sg.send(Mail(
+            from_email=from_email,
+            to_emails=recipient,
+            subject=f"[REIA] {len(pending_records)} Pending Refund(s) — ₹{total:,.0f} Outstanding",
+            html_content=html_content,
+        ))
+        print(f"[Scheduler] Email sent to {recipient} — HTTP {response.status_code}")
     except Exception as e:
         print(f"[Scheduler] SendGrid error: {e}")
 
 
-# ── main loop ─────────────────────────────────────────────────────────────────
+# ── Main loop ─────────────────────────────────────────────────────────────────
 
 def _scheduler_loop():
-    print("[Scheduler] Started — will read interval from settings dynamically.")
+    print("[Scheduler] Started.")
+
+    # Track when the last email was sent so we respect the interval correctly
+    last_sent = 0.0
+
     while True:
-        settings = load_settings()
+        try:
+            settings = load_settings()
 
-        if not settings.get("reminder_enabled", True):
-            # Disabled — sleep 1 min and re-check
-            time.sleep(60)
-            continue
+            if not settings.get("reminder_enabled", True):
+                # Disabled — check again in 1 minute
+                time.sleep(60)
+                continue
 
-        interval_minutes = max(1, int(settings.get("reminder_interval_minutes", 240)))
-        recipient = settings.get("reminder_email", "").strip() or os.getenv("REMINDER_EMAIL", "")
+            interval_minutes = max(1, int(settings.get("reminder_interval_minutes", 240)))
+            interval_seconds = interval_minutes * 60
+            recipient        = str(settings.get("reminder_email", "")).strip()
 
-        if recipient:
-            # Import here to avoid circular imports at module load time
-            try:
-                from app import load_records, compute_days
-                records = load_records()
+            now = time.time()
+
+            if recipient and (now - last_sent) >= interval_seconds:
+                # Time to send
+                records = _load_records()
                 for r in records:
-                    r["days_out"] = compute_days(r)
-                pending = [r for r in records if r.get("status") not in ("Completed",)]
+                    r["days_out"] = _compute_days(r)
+
+                pending = [
+                    r for r in records
+                    if str(r.get("status", "")).strip().lower() != "completed"
+                ]
+
+                print(f"[Scheduler] Pending={len(pending)}, interval={interval_minutes}min")
+
                 if pending:
-                    send_reminder_email(pending, recipient)
+                    send_reminder_email(pending, recipient, interval_minutes)
                 else:
                     print("[Scheduler] No pending refunds — skipping email.")
-            except Exception as e:
-                print(f"[Scheduler] Error loading records: {e}")
-        else:
-            print("[Scheduler] No recipient configured. Set REMINDER_EMAIL env var or via Settings.")
 
-        # Sleep for the configured interval
-        print(f"[Scheduler] Next reminder in {interval_minutes} minute(s).")
-        time.sleep(interval_minutes * 60)
+                last_sent = time.time()
+
+            # Sleep in 30-second chunks so interval changes are picked up quickly
+            time.sleep(30)
+
+        except Exception as e:
+            print(f"[Scheduler] Loop error: {e}")
+            time.sleep(60)
 
 
 def start_scheduler():
     t = threading.Thread(target=_scheduler_loop, daemon=True)
     t.start()
+    print("[Scheduler] Thread launched.")
+    
