@@ -4,16 +4,17 @@ scheduler.py — Background email reminder scheduler.
 - No circular import from app.py
 - Sleeps in 30s chunks so interval changes apply quickly
 - Beautiful REIA-branded HTML email
+- Sends via Gmail SMTP (no SendGrid)
 """
 
 import threading
 import time
 import os
 import json
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from datetime import date, datetime
-
-import sendgrid
-from sendgrid.helpers.mail import Mail
 
 from settings import load_settings
 from google_sheets import GoogleSheetsSync
@@ -57,14 +58,15 @@ def _compute_days(record) -> int:
 # ── Email ─────────────────────────────────────────────────────────────────────
 
 def send_reminder_email(pending_records: list, recipient: str, interval: int):
-    sg_key = os.getenv("SENDGRID_API_KEY")
-    if not sg_key:
-        print("[Scheduler] SENDGRID_API_KEY not set — skipping.")
+    gmail_user     = os.getenv("GMAIL_USER")
+    gmail_password = os.getenv("GMAIL_APP_PASSWORD")
+
+    if not gmail_user or not gmail_password:
+        print("[Scheduler] GMAIL_USER or GMAIL_APP_PASSWORD not set — skipping.")
         return
 
-    from_email = os.getenv("SENDGRID_FROM_EMAIL", "noreply@reia.com")
-    total      = sum(r.get("net", 0) for r in pending_records)
-    now_str    = datetime.now().strftime("%d %b %Y, %I:%M %p")
+    total   = sum(r.get("net", 0) for r in pending_records)
+    now_str = datetime.now().strftime("%d %b %Y, %I:%M %p")
 
     rows_html = ""
     for r in pending_records:
@@ -181,16 +183,19 @@ def send_reminder_email(pending_records: list, recipient: str, interval: int):
 </html>"""
 
     try:
-        sg       = sendgrid.SendGridAPIClient(api_key=sg_key)
-        response = sg.send(Mail(
-            from_email=from_email,
-            to_emails=recipient,
-            subject=f"Refund Reminder — {len(pending_records)} pending, Rs.{total:,.0f} outstanding",
-            html_content=html_content,
-        ))
-        print(f"[Scheduler] Email sent to {recipient} — HTTP {response.status_code}")
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = f"Refund Reminder — {len(pending_records)} pending, Rs.{total:,.0f} outstanding"
+        msg["From"]    = f"RÉIA Accounts <{gmail_user}>"
+        msg["To"]      = recipient
+        msg.attach(MIMEText(html_content, "html"))
+
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(gmail_user, gmail_password)
+            server.sendmail(gmail_user, recipient, msg.as_string())
+
+        print(f"[Scheduler] Email sent to {recipient} via Gmail SMTP")
     except Exception as e:
-        print(f"[Scheduler] SendGrid error: {e}")
+        print(f"[Scheduler] Gmail SMTP error: {e}")
 
 
 # ── Main loop ─────────────────────────────────────────────────────────────────
