@@ -7,6 +7,7 @@ import json
 import os
 from datetime import date, datetime
 from google_sheets import GoogleSheetsSync
+from settings import load_settings, save_settings          # ← NEW
 
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "reia-refund-secret-2024")
@@ -315,6 +316,29 @@ def export_google_sheets():
         flash(f"Export failed: {str(e)}", "error")
     return redirect(url_for("summary"))
 
+# ── Settings ──────────────────────────────────────────────────────────────────
+
+@app.route("/settings", methods=["GET", "POST"])
+@login_required
+def settings_page():
+    settings = load_settings()
+    if request.method == "POST":
+        try:
+            interval = int(request.form.get("reminder_interval_minutes", 240))
+            interval = max(1, interval)
+        except ValueError:
+            interval = 240
+
+        settings["reminder_interval_minutes"] = interval
+        settings["reminder_enabled"]          = request.form.get("reminder_enabled") == "on"
+        settings["reminder_email"]            = request.form.get("reminder_email", "").strip()
+
+        save_settings(settings)
+        flash("Settings saved successfully!", "success")
+        return redirect(url_for("settings_page"))
+
+    return render_template("settings.html", settings=settings)
+
 # ── API ───────────────────────────────────────────────────────────────────────
 
 @app.route("/api/records")
@@ -352,6 +376,13 @@ def api_delete(no):
     save_records(records)
     return jsonify({"ok": True, "deleted": no})
 
+# ── START SCHEDULER ───────────────────────────────────────────────────────────
+# Always start — scheduler reads settings.json dynamically and respects
+# reminder_enabled flag, so no SENDGRID_API_KEY guard needed here.
+from scheduler import start_scheduler
+start_scheduler()
+
+# ── ──────────────────────────────────────────────────────────────────────────
+
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
-    
