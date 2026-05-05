@@ -158,17 +158,20 @@ def send_reminder_email(pending_records: list, recipient: str, interval: int):
 
         <!-- ── Logo header ── -->
         <tr>
-          <td style="background:{BRAND};border-radius:8px 8px 0 0;padding:28px 40px 24px;text-align:center;">
+          <td style="background:{BRAND};border-radius:8px 8px 0 0;padding:28px 40px 24px;text-align:center;line-height:normal;font-size:0;mso-line-height-rule:exactly;">
             <img src="{LOGO_URL}" alt="RÉIA"
                  height="34"
-                 style="height:34px;display:inline-block;filter:grayscale(1) brightness(10) contrast(1.2);">
-            <p style="margin:16px 0 0;font-size:9px;letter-spacing:0.28em;text-transform:uppercase;color:{GOLD};font-family:'DM Sans',Arial,sans-serif;font-weight:500;">Refund Reminder</p>
+                 style="height:34px;display:block;margin:0 auto;filter:grayscale(1) brightness(10) contrast(1.2);">
+            <p style="margin:16px 0 0;font-size:9px;letter-spacing:0.28em;text-transform:uppercase;color:{GOLD};font-family:'DM Sans',Arial,sans-serif;font-weight:500;line-height:1.4;">Refund Reminder</p>
           </td>
+        </tr>
+        <tr style="line-height:0;font-size:0;">
+          <td style="background:{BRAND};padding:0;line-height:0;font-size:0;height:0;mso-line-height-rule:exactly;">&nbsp;</td>
         </tr>
 
         <!-- ── Table ── -->
         <tr>
-          <td style="background:#FFFFFF;padding:0;">
+          <td style="background:#FFFFFF;padding:0;border-top:3px solid {BRAND};">
             <table width="100%" cellpadding="0" cellspacing="0">
               <!-- Column headers -->
               <tr style="background:{CREAM};">
