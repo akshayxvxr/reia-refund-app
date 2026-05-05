@@ -4,17 +4,22 @@ scheduler.py — Background email reminder scheduler.
 - No circular import from app.py
 - Sleeps in 30s chunks so interval changes apply quickly
 - Beautiful REIA-branded HTML email
-- Sends via Gmail SMTP (no SendGrid)
+- Sends via Gmail REST API using OAuth2 refresh token (works on Render free tier)
 """
 
 import threading
 import time
 import os
 import json
-import smtplib
+import base64
+from datetime import date, datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from datetime import date, datetime
+
+import requests
+from google.oauth2.credentials import Credentials
+from google.auth.transport.requests import Request
+from googleapiclient.discovery import build
 
 from settings import load_settings
 from google_sheets import GoogleSheetsSync
@@ -55,14 +60,36 @@ def _compute_days(record) -> int:
         return record.get("days_out", 0)
 
 
+def _get_gmail_service():
+    """Build Gmail API service using OAuth2 refresh token."""
+    client_id     = os.getenv("OAUTH_CLIENT_ID")
+    client_secret = os.getenv("OAUTH_CLIENT_SECRET")
+    refresh_token = os.getenv("OAUTH_REFRESH_TOKEN")
+
+    if not all([client_id, client_secret, refresh_token]):
+        raise ValueError("OAUTH_CLIENT_ID, OAUTH_CLIENT_SECRET or OAUTH_REFRESH_TOKEN not set")
+
+    creds = Credentials(
+        token=None,
+        refresh_token=refresh_token,
+        token_uri="https://oauth2.googleapis.com/token",
+        client_id=client_id,
+        client_secret=client_secret,
+        scopes=["https://www.googleapis.com/auth/gmail.send"],
+    )
+
+    # Refresh to get a valid access token
+    creds.refresh(Request())
+
+    return build("gmail", "v1", credentials=creds, cache_discovery=False)
+
+
 # ── Email ─────────────────────────────────────────────────────────────────────
 
 def send_reminder_email(pending_records: list, recipient: str, interval: int):
-    gmail_user     = os.getenv("GMAIL_USER")
-    gmail_password = os.getenv("GMAIL_APP_PASSWORD")
-
-    if not gmail_user or not gmail_password:
-        print("[Scheduler] GMAIL_USER or GMAIL_APP_PASSWORD not set — skipping.")
+    sender = os.getenv("GMAIL_USER", "").strip()
+    if not sender:
+        print("[Scheduler] GMAIL_USER not set — skipping.")
         return
 
     total   = sum(r.get("net", 0) for r in pending_records)
@@ -185,17 +212,21 @@ def send_reminder_email(pending_records: list, recipient: str, interval: int):
     try:
         msg = MIMEMultipart("alternative")
         msg["Subject"] = f"Refund Reminder — {len(pending_records)} pending, Rs.{total:,.0f} outstanding"
-        msg["From"]    = f"RÉIA Accounts <{gmail_user}>"
+        msg["From"]    = f"RÉIA Accounts <{sender}>"
         msg["To"]      = recipient
         msg.attach(MIMEText(html_content, "html"))
 
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-            server.login(gmail_user, gmail_password)
-            server.sendmail(gmail_user, recipient, msg.as_string())
+        raw     = base64.urlsafe_b64encode(msg.as_bytes()).decode()
+        service = _get_gmail_service()
+        service.users().messages().send(
+            userId="me",
+            body={"raw": raw}
+        ).execute()
 
-        print(f"[Scheduler] Email sent to {recipient} via Gmail SMTP")
+        print(f"[Scheduler] Email sent to {recipient} via Gmail API ✅")
+
     except Exception as e:
-        print(f"[Scheduler] Gmail SMTP error: {e}")
+        print(f"[Scheduler] Gmail API error: {e}")
 
 
 # ── Main loop ─────────────────────────────────────────────────────────────────
