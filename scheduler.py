@@ -131,14 +131,14 @@ def send_reminder_email(pending_records: list, recipient: str, interval: int):
 
         rows_html += f"""
         <tr style="background:{row_bg};">
-          <td style="padding:13px 20px;border-bottom:1px solid {CREAM_DARK};font-size:12px;color:{HINT};font-family:'DM Sans',Arial,sans-serif;width:36px;">{r.get('no','')}</td>
-          <td style="padding:13px 20px;border-bottom:1px solid {CREAM_DARK};">
-            <div style="font-size:13px;color:{BRAND};font-weight:500;font-family:'DM Sans',Arial,sans-serif;">{r.get('name','')}</div>
-            <div style="font-size:11px;color:{MUTED};margin-top:2px;font-family:'DM Sans',Arial,sans-serif;letter-spacing:0.03em;">{r.get('store','')}</div>
+          <td style="padding:9px 12px;border-bottom:1px solid {CREAM_DARK};font-size:11px;color:{HINT};font-family:'DM Sans',Arial,sans-serif;width:30px;">{r.get('no','')}</td>
+          <td style="padding:9px 12px;border-bottom:1px solid {CREAM_DARK};">
+            <div style="font-size:12px;color:{BRAND};font-weight:500;font-family:'DM Sans',Arial,sans-serif;">{r.get('name','')}</div>
+            <div style="font-size:10px;color:{MUTED};margin-top:1px;font-family:'DM Sans',Arial,sans-serif;">{r.get('store','')}</div>
           </td>
-          <td style="padding:13px 20px;border-bottom:1px solid {CREAM_DARK};font-size:14px;color:{BRAND};font-weight:600;font-family:'DM Sans',Arial,sans-serif;white-space:nowrap;">&#8377;{r.get('net',0):,.0f}</td>
-          <td style="padding:13px 20px;border-bottom:1px solid {CREAM_DARK};white-space:nowrap;">
-            <span style="font-size:12px;font-weight:600;color:{days_color};font-family:'DM Sans',Arial,sans-serif;">{days_label}</span>
+          <td style="padding:9px 12px;border-bottom:1px solid {CREAM_DARK};font-size:12px;color:{BRAND};font-weight:600;font-family:'DM Sans',Arial,sans-serif;white-space:nowrap;">&#8377;{r.get('net',0):,.0f}</td>
+          <td style="padding:9px 12px;border-bottom:1px solid {CREAM_DARK};white-space:nowrap;">
+            <span style="font-size:11px;font-weight:600;color:{days_color};font-family:'DM Sans',Arial,sans-serif;">{days_label}</span>
           </td>
         </tr>"""
 
@@ -162,26 +162,8 @@ def send_reminder_email(pending_records: list, recipient: str, interval: int):
             <img src="{LOGO_URL}" alt="RÉIA"
                  height="34"
                  style="height:34px;display:inline-block;filter:grayscale(1) brightness(10) contrast(1.2);">
-            <div style="margin-top:18px;height:1px;background:linear-gradient(90deg,transparent,{GOLD} 25%,{GOLD} 75%,transparent);"></div>
+            <div style="margin-top:18px;height:1px;background:{BRAND};"></div>
             <p style="margin:12px 0 0;font-size:9px;letter-spacing:0.28em;text-transform:uppercase;color:{GOLD};font-family:'DM Sans',Arial,sans-serif;font-weight:500;">Accounts Portal &nbsp;·&nbsp; Refund Reminder</p>
-          </td>
-        </tr>
-
-        <!-- ── Summary bar ── -->
-        <tr>
-          <td style="background:#FFFFFF;padding:24px 40px;border-bottom:1px solid {CREAM_DARK};">
-            <table width="100%" cellpadding="0" cellspacing="0">
-              <tr>
-                <td style="width:50%;">
-                  <p style="margin:0;font-size:9px;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;color:{MUTED};font-family:'DM Sans',Arial,sans-serif;">Outstanding</p>
-                  <p style="margin:6px 0 0;font-size:26px;color:{BRAND};font-family:'DM Serif Display',Georgia,serif;font-weight:400;letter-spacing:0.01em;">&#8377;{total:,.0f}</p>
-                </td>
-                <td style="width:50%;text-align:right;vertical-align:top;">
-                  <p style="margin:0;font-size:9px;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;color:{MUTED};font-family:'DM Sans',Arial,sans-serif;">Pending Refunds</p>
-                  <p style="margin:6px 0 0;font-size:26px;color:{BRAND};font-family:'DM Serif Display',Georgia,serif;font-weight:400;">{len(pending_records)}</p>
-                </td>
-              </tr>
-            </table>
           </td>
         </tr>
 
@@ -191,10 +173,10 @@ def send_reminder_email(pending_records: list, recipient: str, interval: int):
             <table width="100%" cellpadding="0" cellspacing="0">
               <!-- Column headers -->
               <tr style="background:{CREAM};">
-                <th style="padding:10px 20px;text-align:left;font-size:9px;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;color:{HINT};font-family:'DM Sans',Arial,sans-serif;border-bottom:1px solid {CREAM_DARK};">#</th>
-                <th style="padding:10px 20px;text-align:left;font-size:9px;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;color:{HINT};font-family:'DM Sans',Arial,sans-serif;border-bottom:1px solid {CREAM_DARK};">Customer</th>
-                <th style="padding:10px 20px;text-align:left;font-size:9px;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;color:{HINT};font-family:'DM Sans',Arial,sans-serif;border-bottom:1px solid {CREAM_DARK};">Net Refund</th>
-                <th style="padding:10px 20px;text-align:left;font-size:9px;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;color:{HINT};font-family:'DM Sans',Arial,sans-serif;border-bottom:1px solid {CREAM_DARK};">Days Overdue</th>
+                <th style="padding:7px 12px;text-align:left;font-size:9px;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;color:{HINT};font-family:'DM Sans',Arial,sans-serif;border-bottom:1px solid {CREAM_DARK};">#</th>
+                <th style="padding:7px 12px;text-align:left;font-size:9px;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;color:{HINT};font-family:'DM Sans',Arial,sans-serif;border-bottom:1px solid {CREAM_DARK};">Customer</th>
+                <th style="padding:7px 12px;text-align:left;font-size:9px;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;color:{HINT};font-family:'DM Sans',Arial,sans-serif;border-bottom:1px solid {CREAM_DARK};">Net Refund</th>
+                <th style="padding:7px 12px;text-align:left;font-size:9px;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;color:{HINT};font-family:'DM Sans',Arial,sans-serif;border-bottom:1px solid {CREAM_DARK};">Days</th>
               </tr>
               {rows_html}
             </table>
