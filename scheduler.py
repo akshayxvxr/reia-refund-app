@@ -3,7 +3,7 @@ scheduler.py — Background email reminder scheduler.
 
 - No circular import from app.py
 - Sleeps in 30s chunks so interval changes apply quickly
-- Minimal REIA-branded HTML email
+- Email matches RÉIA brand: DM Serif Display + DM Sans, exact brand colours
 - Sends via Gmail REST API using OAuth2 refresh token (works on Render free tier)
 """
 
@@ -25,6 +25,23 @@ from google_sheets import GoogleSheetsSync
 
 DATA_FILE = "data/refunds.json"
 LOGO_URL  = "https://reia-refund-app.onrender.com/static/reia_logo.png"
+
+# Exact brand tokens from base.html
+BRAND      = "#1A1A18"
+GOLD       = "#BFA27A"
+GOLD_LIGHT = "#D4BA94"
+GOLD_PALE  = "#EDE0CC"
+CREAM      = "#F8F4EE"
+CREAM_DARK = "#EDE8DF"
+BG         = "#F5F1EB"
+MUTED      = "#8A8A80"
+HINT       = "#B0AEA6"
+BORDER     = "#DDD8CE"
+TEXT_SEC   = "#4A4A44"
+RED        = "#C0392B"
+AMBER      = "#8B6914"
+AMBER_BG   = "#FBF4E3"
+GREEN      = "#2D6A4F"
 
 
 # ── Standalone helpers ────────────────────────────────────────────────────────
@@ -53,19 +70,16 @@ def _compute_days(record) -> int:
     """Always recompute from date field so days_out is never stale."""
     if str(record.get("status", "")).strip().lower() == "completed":
         return 0
-    try:
-        d = datetime.strptime(str(record.get("date", "")), "%Y-%m-%d").date()
-        return (date.today() - d).days
-    except Exception:
+    for fmt in ("%Y-%m-%d", "%m/%d/%Y"):
         try:
-            d = datetime.strptime(str(record.get("date", "")), "%m/%d/%Y").date()
+            d = datetime.strptime(str(record.get("date", "")), fmt).date()
             return (date.today() - d).days
         except Exception:
-            return record.get("days_out", 0)
+            continue
+    return record.get("days_out", 0)
 
 
 def _get_gmail_service():
-    """Build Gmail API service using OAuth2 refresh token."""
     client_id     = os.getenv("OAUTH_CLIENT_ID")
     client_secret = os.getenv("OAUTH_CLIENT_SECRET")
     refresh_token = os.getenv("OAUTH_REFRESH_TOKEN")
@@ -93,7 +107,7 @@ def send_reminder_email(pending_records: list, recipient: str, interval: int):
         print("[Scheduler] GMAIL_USER not set — skipping.")
         return
 
-    # Always recompute days from date so it's never 0
+    # Always recompute fresh days
     for r in pending_records:
         r["days_out"] = _compute_days(r)
 
@@ -101,88 +115,110 @@ def send_reminder_email(pending_records: list, recipient: str, interval: int):
     now_str = datetime.now().strftime("%d %b %Y, %I:%M %p")
 
     rows_html = ""
-    for r in pending_records:
-        days     = r.get("days_out", 0)
-        overdue_label = f"{days} day{'s' if days != 1 else ''}"
-        overdue_color = "#C0392B" if days >= 7 else "#92702A"
+    for i, r in enumerate(pending_records):
+        days = r.get("days_out", 0)
+        if days >= 7:
+            days_color = RED
+            days_label = f"{days} days"
+        elif days >= 3:
+            days_color = AMBER
+            days_label = f"{days} days"
+        else:
+            days_color = GREEN
+            days_label = f"{days} day{'s' if days != 1 else ''}"
+
+        row_bg = "#FFFFFF" if i % 2 == 0 else "#FDFAF6"
+
         rows_html += f"""
-        <tr>
-          <td style="padding:14px 20px;border-bottom:1px solid #F0EBE3;font-size:13px;color:#6B6560;">{r.get('no','')}</td>
-          <td style="padding:14px 20px;border-bottom:1px solid #F0EBE3;">
-            <div style="font-size:13px;color:#1A1612;font-weight:600;">{r.get('name','')}</div>
-            <div style="font-size:11px;color:#9A8F82;margin-top:2px;">{r.get('store','')}</div>
+        <tr style="background:{row_bg};">
+          <td style="padding:13px 20px;border-bottom:1px solid {CREAM_DARK};font-size:12px;color:{HINT};font-family:'DM Sans',Arial,sans-serif;width:36px;">{r.get('no','')}</td>
+          <td style="padding:13px 20px;border-bottom:1px solid {CREAM_DARK};">
+            <div style="font-size:13px;color:{BRAND};font-weight:500;font-family:'DM Sans',Arial,sans-serif;">{r.get('name','')}</div>
+            <div style="font-size:11px;color:{MUTED};margin-top:2px;font-family:'DM Sans',Arial,sans-serif;letter-spacing:0.03em;">{r.get('store','')}</div>
           </td>
-          <td style="padding:14px 20px;border-bottom:1px solid #F0EBE3;font-size:14px;color:#1A1612;font-weight:600;">&#8377;{r.get('net',0):,.0f}</td>
-          <td style="padding:14px 20px;border-bottom:1px solid #F0EBE3;">
-            <span style="font-size:12px;font-weight:600;color:{overdue_color};">{overdue_label}</span>
+          <td style="padding:13px 20px;border-bottom:1px solid {CREAM_DARK};font-size:14px;color:{BRAND};font-weight:600;font-family:'DM Sans',Arial,sans-serif;white-space:nowrap;">&#8377;{r.get('net',0):,.0f}</td>
+          <td style="padding:13px 20px;border-bottom:1px solid {CREAM_DARK};white-space:nowrap;">
+            <span style="font-size:12px;font-weight:600;color:{days_color};font-family:'DM Sans',Arial,sans-serif;">{days_label}</span>
           </td>
         </tr>"""
 
     html_content = f"""<!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=DM+Serif+Display&display=swap" rel="stylesheet">
 </head>
-<body style="margin:0;padding:0;background:#F7F4F0;font-family:Arial,Helvetica,sans-serif;">
+<body style="margin:0;padding:0;background:{BG};font-family:'DM Sans',Arial,Helvetica,sans-serif;">
 
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#F7F4F0;padding:48px 20px;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:{BG};padding:40px 16px;">
     <tr><td align="center">
-      <table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#FFFFFF;border-radius:4px;overflow:hidden;">
+      <table width="580" cellpadding="0" cellspacing="0" style="max-width:580px;width:100%;">
 
-        <!-- Header -->
+        <!-- ── Logo header ── -->
         <tr>
-          <td style="background:#0E0C07;padding:32px 40px;text-align:center;">
-            <img src="{LOGO_URL}" alt="RÉIA" height="32" style="height:32px;display:inline-block;">
-            <div style="margin-top:16px;height:1px;background:linear-gradient(90deg,transparent,#C9A96E 30%,#C9A96E 70%,transparent);"></div>
-            <p style="margin:14px 0 0;font-size:11px;letter-spacing:0.3em;text-transform:uppercase;color:#C9A96E;">Refund Reminder</p>
+          <td style="background:{BRAND};border-radius:8px 8px 0 0;padding:28px 40px 24px;text-align:center;">
+            <img src="{LOGO_URL}" alt="RÉIA"
+                 height="34"
+                 style="height:34px;display:inline-block;filter:grayscale(1) brightness(10) contrast(1.2);">
+            <div style="margin-top:18px;height:1px;background:linear-gradient(90deg,transparent,{GOLD} 25%,{GOLD} 75%,transparent);"></div>
+            <p style="margin:12px 0 0;font-size:9px;letter-spacing:0.28em;text-transform:uppercase;color:{GOLD};font-family:'DM Sans',Arial,sans-serif;font-weight:500;">Accounts Portal &nbsp;·&nbsp; Refund Reminder</p>
           </td>
         </tr>
 
-        <!-- Summary bar -->
+        <!-- ── Summary bar ── -->
         <tr>
-          <td style="background:#FAF7F3;padding:20px 40px;border-bottom:1px solid #F0EBE3;">
+          <td style="background:#FFFFFF;padding:24px 40px;border-bottom:1px solid {CREAM_DARK};">
             <table width="100%" cellpadding="0" cellspacing="0">
               <tr>
-                <td>
-                  <p style="margin:0;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#9A8F82;">Outstanding Amount</p>
-                  <p style="margin:6px 0 0;font-size:22px;color:#0E0C07;font-weight:700;">&#8377;{total:,.0f}</p>
+                <td style="width:50%;">
+                  <p style="margin:0;font-size:9px;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;color:{MUTED};font-family:'DM Sans',Arial,sans-serif;">Outstanding</p>
+                  <p style="margin:6px 0 0;font-size:26px;color:{BRAND};font-family:'DM Serif Display',Georgia,serif;font-weight:400;letter-spacing:0.01em;">&#8377;{total:,.0f}</p>
                 </td>
-                <td align="right">
-                  <p style="margin:0;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#9A8F82;">Pending Refunds</p>
-                  <p style="margin:6px 0 0;font-size:22px;color:#0E0C07;font-weight:700;">{len(pending_records)}</p>
+                <td style="width:50%;text-align:right;vertical-align:top;">
+                  <p style="margin:0;font-size:9px;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;color:{MUTED};font-family:'DM Sans',Arial,sans-serif;">Pending Refunds</p>
+                  <p style="margin:6px 0 0;font-size:26px;color:{BRAND};font-family:'DM Serif Display',Georgia,serif;font-weight:400;">{len(pending_records)}</p>
                 </td>
               </tr>
             </table>
           </td>
         </tr>
 
-        <!-- Table header -->
+        <!-- ── Table ── -->
         <tr>
-          <td style="padding:0;">
+          <td style="background:#FFFFFF;padding:0;">
             <table width="100%" cellpadding="0" cellspacing="0">
-              <tr style="background:#FAF7F3;">
-                <th style="padding:10px 20px;text-align:left;font-size:10px;letter-spacing:0.15em;text-transform:uppercase;color:#B0A898;font-weight:600;border-bottom:1px solid #F0EBE3;">#</th>
-                <th style="padding:10px 20px;text-align:left;font-size:10px;letter-spacing:0.15em;text-transform:uppercase;color:#B0A898;font-weight:600;border-bottom:1px solid #F0EBE3;">Customer</th>
-                <th style="padding:10px 20px;text-align:left;font-size:10px;letter-spacing:0.15em;text-transform:uppercase;color:#B0A898;font-weight:600;border-bottom:1px solid #F0EBE3;">Net Refund</th>
-                <th style="padding:10px 20px;text-align:left;font-size:10px;letter-spacing:0.15em;text-transform:uppercase;color:#B0A898;font-weight:600;border-bottom:1px solid #F0EBE3;">Days Overdue</th>
+              <!-- Column headers -->
+              <tr style="background:{CREAM};">
+                <th style="padding:10px 20px;text-align:left;font-size:9px;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;color:{HINT};font-family:'DM Sans',Arial,sans-serif;border-bottom:1px solid {CREAM_DARK};">#</th>
+                <th style="padding:10px 20px;text-align:left;font-size:9px;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;color:{HINT};font-family:'DM Sans',Arial,sans-serif;border-bottom:1px solid {CREAM_DARK};">Customer</th>
+                <th style="padding:10px 20px;text-align:left;font-size:9px;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;color:{HINT};font-family:'DM Sans',Arial,sans-serif;border-bottom:1px solid {CREAM_DARK};">Net Refund</th>
+                <th style="padding:10px 20px;text-align:left;font-size:9px;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;color:{HINT};font-family:'DM Sans',Arial,sans-serif;border-bottom:1px solid {CREAM_DARK};">Days Overdue</th>
               </tr>
               {rows_html}
             </table>
           </td>
         </tr>
 
-        <!-- Footer -->
+        <!-- ── Gold accent bar ── -->
         <tr>
-          <td style="padding:24px 40px;background:#FAF7F3;border-top:1px solid #F0EBE3;">
+          <td style="background:#FFFFFF;padding:0 40px;">
+            <div style="height:2px;background:linear-gradient(90deg,{GOLD} 0%,{GOLD_PALE} 100%);border-radius:1px;"></div>
+          </td>
+        </tr>
+
+        <!-- ── Footer ── -->
+        <tr>
+          <td style="background:{CREAM};border-radius:0 0 8px 8px;padding:16px 40px;border-top:1px solid {CREAM_DARK};">
             <table width="100%" cellpadding="0" cellspacing="0">
               <tr>
                 <td>
-                  <p style="margin:0;font-size:11px;color:#B0A898;">Generated {now_str}</p>
-                  <p style="margin:4px 0 0;font-size:11px;color:#B0A898;">Reminder frequency: every {interval} minute(s)</p>
+                  <p style="margin:0;font-size:10px;color:{HINT};font-family:'DM Sans',Arial,sans-serif;">Generated {now_str}</p>
+                  <p style="margin:3px 0 0;font-size:10px;color:{HINT};font-family:'DM Sans',Arial,sans-serif;">Reminder every {interval} minute(s)</p>
                 </td>
-                <td align="right" style="vertical-align:bottom;">
-                  <p style="margin:0;font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:#C9A96E;">RÉIA Accounts</p>
+                <td align="right" style="vertical-align:middle;">
+                  <p style="margin:0;font-size:9px;font-weight:600;letter-spacing:0.22em;text-transform:uppercase;color:{GOLD};font-family:'DM Sans',Arial,sans-serif;">RÉIA Accounts</p>
                 </td>
               </tr>
             </table>
@@ -243,7 +279,7 @@ def _scheduler_loop():
                     if str(r.get("status", "")).strip().lower() != "completed"
                 ]
 
-                # Compute fresh days for each pending record
+                # Always compute fresh days before sending
                 for r in pending:
                     r["days_out"] = _compute_days(r)
 
