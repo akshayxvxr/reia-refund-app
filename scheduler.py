@@ -154,7 +154,7 @@ def send_reminder_email(pending_records: list, recipient: str, interval: int):
 
   <table width="100%" cellpadding="0" cellspacing="0" style="background:{BG};padding:40px 16px;">
     <tr><td align="center">
-      <table width="580" cellpadding="0" cellspacing="0" style="max-width:580px;width:100%;">
+      <table width="580" cellpadding="0" cellspacing="0" style="max-width:580px;width:100%;border-collapse:collapse;">
 
         <!-- ── Logo header ── -->
         <tr>
@@ -162,8 +162,7 @@ def send_reminder_email(pending_records: list, recipient: str, interval: int):
             <img src="{LOGO_URL}" alt="RÉIA"
                  height="34"
                  style="height:34px;display:inline-block;filter:grayscale(1) brightness(10) contrast(1.2);">
-            <div style="margin-top:18px;height:1px;background:{BRAND};"></div>
-            <p style="margin:12px 0 0;font-size:9px;letter-spacing:0.28em;text-transform:uppercase;color:{GOLD};font-family:'DM Sans',Arial,sans-serif;font-weight:500;">Accounts Portal &nbsp;·&nbsp; Refund Reminder</p>
+            <p style="margin:16px 0 0;font-size:9px;letter-spacing:0.28em;text-transform:uppercase;color:{GOLD};font-family:'DM Sans',Arial,sans-serif;font-weight:500;">Refund Reminder</p>
           </td>
         </tr>
 
